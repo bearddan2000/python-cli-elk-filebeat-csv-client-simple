@@ -1,0 +1,11 @@
+#################################################
+#  Filebeat configuration to ingest access logs.#
+#################################################
+
+filebeat.inputs:
+- type: log
+  paths:
+    - /usr/share/filebeat/logs/*.csv
+
+output.logstash:
+  hosts: ["logstash:5044"]

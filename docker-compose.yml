@@ -1,0 +1,86 @@
+version: "3.4"
+
+services:
+
+  py-srv:
+    build: py-srv
+    healthcheck:
+      test: "exit 0"
+    command: sh -c "/wait && python app.py"
+    environment:
+      - INDEX_NAME=${INDEX_NAME}
+      - WAIT_HOSTS=elasticsearch:9200
+      - WAIT_HOSTS_TIMEOUT=300
+      - WAIT_SLEEP_INTERVAL=30
+      - WAIT_HOST_CONNECT_TIMEOUT=30
+    depends_on:
+      - elasticsearch
+    links:
+      - "elasticsearch:elasticsearch"
+
+  elasticsearch:
+    image: elasticsearch:${STACK_VERSION}
+    healthcheck:
+      test: "exit 0"
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - 9200:9200
+
+  filebeat:
+    build: filebeat
+    command: sh -c "/wait && filebeat -e --strict.perms=false"
+    environment:
+      - WAIT_HOSTS=logstash:5044
+      - WAIT_HOSTS_TIMEOUT=300
+      - WAIT_SLEEP_INTERVAL=30
+      - WAIT_HOST_CONNECT_TIMEOUT=30
+
+  logstash:
+    build: logstash
+    ports:
+      - "9600:9600"
+      - 5044:5044
+    command: sh -c "/wait && logstash -f /usr/share/logstash/pipeline/mystash.conf"
+    environment:
+      - STACK_VERSION=${STACK_VERSION}
+      - WAIT_HOSTS=elasticsearch:9200
+      - WAIT_HOSTS_TIMEOUT=300
+      - WAIT_SLEEP_INTERVAL=30
+      - WAIT_HOST_CONNECT_TIMEOUT=30
+      - 'INDEX_NAME=${INDEX_NAME}'
+      - 'HEAP_SIZE:1g'
+      - 'LS_JAVA_OPTS=-Xms1g -Xmx1g'
+      - 'ELASTICSEARCH_HOST:elasticsearch'
+      - 'ELASTICSEARCH_PORT:9200'
+    depends_on:
+      - elasticsearch
+    links:
+      - "elasticsearch:elasticsearch"
+
+  kibana:
+    image: kibana:${STACK_VERSION}
+    healthcheck:
+      test: "exit 0"
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    environment:
+      - "ELASTICSEARCH_URL=http://elasticsearch:9200"
+      - "SERVER_NAME=127.0.0.1"
+    ports:
+      - 5601:5601
+    depends_on:
+      - elasticsearch
+
